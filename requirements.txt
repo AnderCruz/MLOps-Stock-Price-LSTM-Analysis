@@ -7,3 +7,8 @@ scikit-learn
 plotly
 tensorflow
 PyYAML
+nltk
+textblob
+requests
+python-dotenv
+joblib

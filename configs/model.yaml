@@ -1,0 +1,51 @@
+model:
+  name: stock-price-lstm
+  version: baseline-v0
+  framework: tensorflow
+  architecture: LSTM
+
+data:
+  ticker: TSLA
+  start_date: "2023-01-01"
+
+features:
+  sentiment:
+    enabled: true
+  multivariate:
+    enabled: false
+
+sequence:
+  length: 60
+
+forecast:
+  horizon: 30
+  recursive: true
+
+training:
+  optimizer: Adam
+  learning_rate: 0.001
+  loss: mse
+  epochs: 60
+  batch_size: 32
+  validation_split: 0.1
+
+  early_stopping:
+    enabled: true
+    monitor: val_loss
+    patience: 10
+    restore_best_weights: true
+
+architecture:
+  lstm_1:
+    units: 72
+    return_sequences: true
+    dropout: 0.2
+
+  lstm_2:
+    units: 48
+    return_sequences: false
+    dropout: 0.2
+
+  output:
+    units: 1
+    activation: linear
