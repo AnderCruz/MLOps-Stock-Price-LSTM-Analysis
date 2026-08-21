@@ -37,3 +37,8 @@ htmlcov/
 # IDE
 .vscode/
 .idea/
+# Pipeline runtime artifacts
+artifacts/runs/
+
+# Generated ML artifacts
+artifacts/
