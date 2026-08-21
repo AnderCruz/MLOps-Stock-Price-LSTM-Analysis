@@ -1,0 +1,29 @@
+{
+  "model_version": "baseline-v0",
+  "ticker": "TSLA",
+  "evaluation": {
+    "dataset": "original_notebook_test_set",
+    "horizon_days": 30,
+    "metrics": {
+      "mae": 107.45,
+      "rmse": 108.23,
+      "mape_percent": 24.21,
+      "direction_accuracy_percent": 44.83
+    }
+  },
+  "full_test_set_metrics": {
+    "available": false,
+    "reason": "The original notebook does not contain the final numerical output for the full X_test evaluation."
+  },
+  "forecast_example": {
+    "first_prediction_date": "2025-11-12",
+    "first_predicted_price": 341.60,
+    "last_prediction_date": "2025-12-11",
+    "horizon_days": 30
+  },
+  "source": {
+    "notebook": "Stock_Price_Volatility_Forecasting.ipynb",
+    "evaluation_section": "Future Prediction (HORIZON days)",
+    "historical_run_date": "2025-11-11"
+  }
+}

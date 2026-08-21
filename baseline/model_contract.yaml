@@ -1,0 +1,117 @@
+model:
+  name: stock-price-lstm
+  version: baseline-v0
+  framework: tensorflow
+  architecture: LSTM
+
+data:
+  ticker: TSLA
+  start_date: "2023-01-01"
+
+features:
+  count: 3
+  columns:
+    - TSLA_Close
+    - TSLA_Volume
+    - News_Sentiment
+
+target:
+  column: TSLA_Close
+
+sentiment:
+  enabled: true
+
+auxiliary_assets:
+  enabled: false
+
+sequence:
+  length: 60
+
+forecast:
+  horizon: 30
+  recursive: true
+
+preprocessing:
+  scaler:
+    type: MinMaxScaler
+    feature_range:
+      - 0
+      - 1
+    fitted_feature_count: 3
+
+architecture:
+  layers:
+    - type: LSTM
+      units: 72
+      activation: tanh
+      return_sequences: true
+
+    - type: Dropout
+      rate: 0.2
+
+    - type: LSTM
+      units: 48
+      activation: tanh
+      return_sequences: false
+
+    - type: Dropout
+      rate: 0.2
+
+    - type: Dense
+      units: 1
+      activation: linear
+
+training:
+  optimizer: Adam
+  learning_rate: 0.001
+  loss: mse
+  epochs: 60
+  batch_size: 32
+  validation_split: 0.1
+  early_stopping:
+    enabled: true
+    monitor: val_loss
+    patience: 10
+    restore_best_weights: true
+
+evaluation:
+  test_split_ratio: 0.20
+
+  last_30_days:
+    mae: 107.45
+    rmse: 108.23
+    mape_percent: 24.21
+    direction_accuracy_percent: 44.83
+
+  full_test_set:
+    available: false
+
+artifacts:
+  model: forecasting.keras
+  scaler: scaler.pkl
+  historical_metadata: model_info.pkl
+
+known_issues:
+  - id: metadata_feature_mismatch
+    severity: medium
+    description: >
+      model_info.pkl reports eight dataframe columns, while the
+      serialized model and scaler use three input features.
+
+  - id: preprocessing_leakage
+    severity: high
+    description: >
+      MinMaxScaler is fitted on the complete dataset before the
+      chronological train/test split.
+
+  - id: exogenous_feature_carry_forward
+    severity: medium
+    description: >
+      Recursive forecasting carries the last observed Volume and
+      News_Sentiment values forward rather than forecasting them.
+
+  - id: sklearn_version_mismatch
+    severity: medium
+    description: >
+      scaler.pkl was serialized with scikit-learn 1.7.2 while the
+      current environment uses scikit-learn 1.9.0.

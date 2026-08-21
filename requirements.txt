@@ -4,5 +4,14 @@ numpy
 yfinance
 gdown
 scikit-learn
+scipy
 plotly
 tensorflow
+PyYAML
+nltk
+textblob
+requests
+python-dotenv
+joblib
+matplotlib
+seaborn
