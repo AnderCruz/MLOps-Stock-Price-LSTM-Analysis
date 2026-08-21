@@ -4,6 +4,7 @@ numpy
 yfinance
 gdown
 scikit-learn
+scipy
 plotly
 tensorflow
 PyYAML
@@ -12,3 +13,5 @@ textblob
 requests
 python-dotenv
 joblib
+matplotlib
+seaborn
