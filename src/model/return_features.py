@@ -36,6 +36,18 @@ def add_return_features(
             f"Price column '{price_column}' not found."
         )
 
+    if not df.index.is_monotonic_increasing:
+        raise ValueError(
+            "DataFrame must be sorted chronologically."
+        )
+
+    if not np.isfinite(
+        df[price_column].to_numpy()
+    ).all():
+        raise ValueError(
+            "Price column contains non-finite values."
+        )
+
     result = df.copy()
 
     # --------------------------------------------------
