@@ -82,6 +82,55 @@ def save_dataframe(
     )
 
 
+def save_experiment_record(
+    experiment: Any,
+    run_dir: Path,
+) -> Path:
+    """
+    Persist an ExperimentRecord as experiment.json.
+
+    The experiment object must expose a to_dict() method.
+    """
+
+    if experiment is None:
+        raise ValueError(
+            "experiment cannot be None."
+        )
+
+    if not hasattr(
+        experiment,
+        "to_dict",
+    ):
+        raise ValueError(
+            "experiment must provide a "
+            "to_dict() method."
+        )
+
+    if run_dir is None:
+        raise ValueError(
+            "run_dir cannot be None."
+        )
+
+    run_dir = Path(run_dir)
+
+    run_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    path = (
+        run_dir
+        / "experiment.json"
+    )
+
+    save_json(
+        experiment.to_dict(),
+        path,
+    )
+
+    return path
+
+
 def save_pipeline_run(
     run_id: str,
     metadata: dict[str, Any],
@@ -90,6 +139,7 @@ def save_pipeline_run(
     test_data: pd.DataFrame | None = None,
     metrics: dict[str, Any] | None = None,
     predictions: pd.DataFrame | None = None,
+    experiment: Any | None = None,
 ) -> Path:
     """
     Persist artifacts associated with a pipeline run.
@@ -97,11 +147,15 @@ def save_pipeline_run(
     Possible artifacts:
 
         metadata.json
+        experiment.json
         feature_data.csv
         train_data.csv
         test_data.csv
         metrics.json
         predictions.csv
+
+    The experiment record is optional to preserve
+    backwards compatibility with existing callers.
     """
 
     run_dir = create_run_directory(
@@ -120,6 +174,17 @@ def save_pipeline_run(
         metadata,
         run_dir / "metadata.json",
     )
+
+    # --------------------------------------------------
+    # Experiment record
+    # --------------------------------------------------
+
+    if experiment is not None:
+
+        save_experiment_record(
+            experiment=experiment,
+            run_dir=run_dir,
+        )
 
     # --------------------------------------------------
     # Complete feature dataset
