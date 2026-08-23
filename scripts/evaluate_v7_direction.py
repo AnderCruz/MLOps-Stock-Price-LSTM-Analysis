@@ -6,14 +6,6 @@ import sys
 import numpy as np
 
 from scipy.stats import binomtest
-from sklearn.metrics import (
-    accuracy_score,
-    confusion_matrix,
-    precision_score,
-    recall_score,
-    f1_score,
-    roc_auc_score,
-)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -28,6 +20,9 @@ from src.model.direction_preprocessing import (
     prepare_direction_dataset,
 )
 from src.model.predictor import ModelPredictor
+from src.model.evaluation import (
+    evaluate_binary_classifier,
+)
 
 
 MODEL_DIR = (
@@ -115,9 +110,19 @@ def main() -> None:
         feature_columns + ["Direction"]
     ]
 
-    print("Features:", feature_columns)
-    print("Target: Direction")
-    print("Records:", len(df))
+    print(
+        "Features:",
+        feature_columns,
+    )
+
+    print(
+        "Target: Direction"
+    )
+
+    print(
+        "Records:",
+        len(df),
+    )
 
     # ==================================================
     # 4. PREPARE DATASET
@@ -167,10 +172,20 @@ def main() -> None:
     )
 
     assert actual_features == expected_features
-    assert prepared.X_test.shape[1] == SEQUENCE_LENGTH
-    assert len(prepared.X_test) == prepared.test_size
 
-    print("\nStructural validation: PASS")
+    assert (
+        prepared.X_test.shape[1]
+        == SEQUENCE_LENGTH
+    )
+
+    assert (
+        len(prepared.X_test)
+        == prepared.test_size
+    )
+
+    print(
+        "\nStructural validation: PASS"
+    )
 
     # ==================================================
     # 6. PREDICTIONS
@@ -190,10 +205,6 @@ def main() -> None:
         .reshape(-1)
     )
 
-    predictions = (
-        probabilities >= 0.5
-    ).astype(int)
-
     actual = (
         np.asarray(
             prepared.y_test
@@ -202,15 +213,21 @@ def main() -> None:
         .astype(int)
     )
 
-    print("Samples:", len(predictions))
+    print(
+        "Samples:",
+        len(probabilities),
+    )
+
     print(
         "Probability min:",
         f"{probabilities.min():.6f}",
     )
+
     print(
         "Probability max:",
         f"{probabilities.max():.6f}",
     )
+
     print(
         "Probability mean:",
         f"{probabilities.mean():.6f}",
@@ -224,23 +241,39 @@ def main() -> None:
     print("6. TEST DISTRIBUTION")
     print("=" * 70)
 
-    up = int(np.sum(actual == 1))
-    down = int(np.sum(actual == 0))
-
-    majority_baseline = (
-        max(up, down) / len(actual)
+    up = int(
+        np.sum(actual == 1)
     )
 
-    print("UP:", up)
-    print("DOWN:", down)
+    down = int(
+        np.sum(actual == 0)
+    )
+
+    majority_baseline = (
+        max(up, down)
+        / len(actual)
+    )
+
+    print(
+        "UP:",
+        up,
+    )
+
+    print(
+        "DOWN:",
+        down,
+    )
+
     print(
         "UP ratio:",
         f"{up / len(actual):.4%}",
     )
+
     print(
         "DOWN ratio:",
         f"{down / len(actual):.4%}",
     )
+
     print(
         "Majority baseline:",
         f"{majority_baseline:.4%}",
@@ -254,37 +287,34 @@ def main() -> None:
     print("7. CLASSIFICATION METRICS")
     print("=" * 70)
 
-    accuracy = accuracy_score(
-        actual,
-        predictions,
+    evaluation = evaluate_binary_classifier(
+        y_true=actual,
+        probabilities=probabilities,
     )
 
-    precision = precision_score(
-        actual,
-        predictions,
-        zero_division=0,
+    predictions = np.asarray(
+        evaluation["predictions"]
     )
 
-    recall = recall_score(
-        actual,
-        predictions,
-        zero_division=0,
-    )
+    accuracy = evaluation[
+        "accuracy"
+    ]
 
-    f1 = f1_score(
-        actual,
-        predictions,
-        zero_division=0,
-    )
+    precision = evaluation[
+        "precision"
+    ]
 
-    auc = roc_auc_score(
-        actual,
-        probabilities,
-    )
+    recall = evaluation[
+        "recall"
+    ]
 
-    improvement_pp = (
-        accuracy - majority_baseline
-    ) * 100
+    f1 = evaluation[
+        "f1"
+    ]
+
+    auc = evaluation[
+        "roc_auc"
+    ]
 
     print(
         "Accuracy:",
@@ -311,6 +341,11 @@ def main() -> None:
         f"{auc:.4f}",
     )
 
+    improvement_pp = (
+        accuracy
+        - majority_baseline
+    ) * 100
+
     print(
         "vs majority:",
         f"{improvement_pp:+.2f} pp",
@@ -324,9 +359,10 @@ def main() -> None:
     print("8. CONFUSION MATRIX")
     print("=" * 70)
 
-    cm = confusion_matrix(
-        actual,
-        predictions,
+    cm = np.asarray(
+        evaluation[
+            "confusion_matrix"
+        ]
     )
 
     print(
@@ -350,7 +386,11 @@ def main() -> None:
     print("=" * 70)
 
     result_test = binomtest(
-        k=int(np.sum(predictions == actual)),
+        k=int(
+            np.sum(
+                predictions == actual
+            )
+        ),
         n=len(actual),
         p=majority_baseline,
         alternative="greater",
@@ -360,7 +400,11 @@ def main() -> None:
 
     print(
         "Correct:",
-        int(np.sum(predictions == actual)),
+        int(
+            np.sum(
+                predictions == actual
+            )
+        ),
     )
 
     print(
@@ -390,13 +434,20 @@ def main() -> None:
         accuracy > majority_baseline
         and p_value < 0.05
     ):
-        verdict = "STATISTICALLY SIGNIFICANT SIGNAL"
+        verdict = (
+            "STATISTICALLY SIGNIFICANT SIGNAL"
+        )
 
     elif accuracy > majority_baseline:
-        verdict = "POSITIVE BUT NOT STATISTICALLY SIGNIFICANT"
+        verdict = (
+            "POSITIVE BUT NOT "
+            "STATISTICALLY SIGNIFICANT"
+        )
 
     else:
-        verdict = "NO OUT-OF-SAMPLE EDGE"
+        verdict = (
+            "NO OUT-OF-SAMPLE EDGE"
+        )
 
     print(verdict)
 
@@ -408,27 +459,46 @@ def main() -> None:
     print("FINAL V7 DIRECTIONAL EVALUATION")
     print("=" * 70)
 
-    print("Model version: refactored-v7")
-    print("Ticker:", TICKER)
-    print("Test samples:", len(actual))
+    print(
+        "Model version: refactored-v7"
+    )
+
+    print(
+        "Ticker:",
+        TICKER,
+    )
+
+    print(
+        "Test samples:",
+        len(actual),
+    )
+
     print(
         f"Accuracy: {accuracy:.4%}"
     )
+
     print(
-        f"Majority baseline: {majority_baseline:.4%}"
+        f"Majority baseline: "
+        f"{majority_baseline:.4%}"
     )
+
     print(
-        f"Improvement: {improvement_pp:+.2f} pp"
+        f"Improvement: "
+        f"{improvement_pp:+.2f} pp"
     )
+
     print(
         f"F1: {f1:.4%}"
     )
+
     print(
         f"ROC-AUC: {auc:.4f}"
     )
+
     print(
         f"p-value: {p_value:.6f}"
     )
+
     print(
         "Verdict:",
         verdict,

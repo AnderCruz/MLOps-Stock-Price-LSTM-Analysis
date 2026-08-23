@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
+
 from src.model.artifact_manager import save_model_artifact
 from src.model.direction_preprocessing import (
     prepare_direction_dataset,
@@ -11,6 +13,9 @@ from src.model.direction_target import (
 )
 from src.model.directional_model import (
     build_directional_lstm_model,
+)
+from src.model.evaluation import (
+    evaluate_binary_classifier,
 )
 from src.model.return_features import (
     add_return_features,
@@ -364,7 +369,88 @@ def run_training_pipeline(
     )
 
     # ==================================================
-    # 9. MODEL ARTIFACT
+    # 9. EVALUATE TEST DATA
+    # ==================================================
+
+    print("\n" + "=" * 70)
+    print("MODEL EVALUATION")
+    print("=" * 70)
+
+    probabilities = (
+        training_result.model.predict(
+            prepared.X_test,
+            verbose=0,
+        )
+    )
+
+    probabilities = (
+        np.asarray(
+            probabilities
+        ).reshape(-1)
+    )
+
+    evaluation = (
+        evaluate_binary_classifier(
+            y_true=prepared.y_test,
+            probabilities=probabilities,
+        )
+    )
+
+    experiment.metrics = {
+        "accuracy": evaluation[
+            "accuracy"
+        ],
+        "precision": evaluation[
+            "precision"
+        ],
+        "recall": evaluation[
+            "recall"
+        ],
+        "f1": evaluation[
+            "f1"
+        ],
+        "roc_auc": evaluation[
+            "roc_auc"
+        ],
+        "confusion_matrix": evaluation[
+            "confusion_matrix"
+        ],
+    }
+
+    print(
+        "Accuracy:",
+        f"{experiment.metrics['accuracy']:.4%}",
+    )
+
+    print(
+        "Precision:",
+        f"{experiment.metrics['precision']:.4%}",
+    )
+
+    print(
+        "Recall:",
+        f"{experiment.metrics['recall']:.4%}",
+    )
+
+    print(
+        "F1:",
+        f"{experiment.metrics['f1']:.4%}",
+    )
+
+    print(
+        "ROC-AUC:",
+        f"{experiment.metrics['roc_auc']:.4f}",
+    )
+
+    print(
+        "Confusion matrix:",
+        experiment.metrics[
+            "confusion_matrix"
+        ],
+    )
+
+    # ==================================================
+    # 10. MODEL ARTIFACT
     # ==================================================
 
     print("\n" + "=" * 70)
@@ -429,6 +515,10 @@ def run_training_pipeline(
                 ),
                 "patience": PATIENCE,
             },
+
+            "evaluation": dict(
+                experiment.metrics
+            ),
         }
     )
 
@@ -445,7 +535,7 @@ def run_training_pipeline(
     )
 
     # ==================================================
-    # 10. UPDATE EXPERIMENT RECORD
+    # 11. UPDATE EXPERIMENT RECORD
     # ==================================================
 
     experiment.training[
@@ -455,7 +545,7 @@ def run_training_pipeline(
     experiment.status = "completed"
 
     # ==================================================
-    # 11. UPDATE RUN METADATA
+    # 12. UPDATE RUN METADATA
     # ==================================================
 
     final_metadata = dict(metadata)
@@ -491,7 +581,7 @@ def run_training_pipeline(
     )
 
     # ==================================================
-    # 12. FINAL SUMMARY
+    # 13. FINAL SUMMARY
     # ==================================================
 
     print("\n" + "=" * 70)

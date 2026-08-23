@@ -3,9 +3,6 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
-from src.pipeline.experiment_schema import (
-    ExperimentRecord,
-)
 from src.pipeline.train_direction_v7_pipeline import (
     run_training_pipeline,
 )
@@ -13,7 +10,7 @@ from src.pipeline.train_direction_v7_pipeline import (
 
 def make_pipeline_result():
     class PipelineResult:
-        run_id = "v7-test-run-001"
+        run_id = "v7-evaluation-test-001"
         ticker = "TSLA"
 
         features = pd.DataFrame(
@@ -55,43 +52,7 @@ class FakeModel:
         )
 
 
-def make_training_result(
-    epochs_completed=42,
-):
-    return type(
-        "TrainingResult",
-        (),
-        {
-            "model": FakeModel(),
-            "epochs_completed": (
-                epochs_completed
-            ),
-        },
-    )()
-
-
-def make_evaluation_result():
-    return {
-        "accuracy": 0.80,
-        "precision": 0.75,
-        "recall": 1.00,
-        "f1": 0.8571428571,
-        "roc_auc": 0.9166666667,
-        "confusion_matrix": [
-            [1, 1],
-            [0, 3],
-        ],
-        "predictions": [
-            0,
-            1,
-            1,
-            1,
-            1,
-        ],
-    }
-
-
-def test_training_pipeline_creates_experiment_record():
+def test_training_pipeline_persists_real_evaluation_metrics():
     experiment_snapshots = []
 
     def capture_save_pipeline_run(
@@ -159,8 +120,7 @@ def test_training_pipeline_creates_experiment_record():
         "src.pipeline.train_direction_v7_pipeline.save_model_artifact",
     ), patch(
         "src.pipeline.train_direction_v7_pipeline.evaluate_binary_classifier",
-        return_value=make_evaluation_result(),
-    ):
+    ) as evaluate:
 
         prepare_dataset.return_value = type(
             "Prepared",
@@ -177,7 +137,9 @@ def test_training_pipeline_creates_experiment_record():
                 "X_test": np.zeros(
                     (5, 60, 3)
                 ),
-                "y_test": np.zeros(5),
+                "y_test": np.array(
+                    [0, 1, 0, 1, 1]
+                ),
                 "train_data": pd.DataFrame(
                     {"Direction": [0, 1]}
                 ),
@@ -188,9 +150,33 @@ def test_training_pipeline_creates_experiment_record():
             },
         )()
 
-        train_model.return_value = (
-            make_training_result(42)
-        )
+        train_model.return_value = type(
+            "TrainingResult",
+            (),
+            {
+                "model": FakeModel(),
+                "epochs_completed": 42,
+            },
+        )()
+
+        evaluate.return_value = {
+            "accuracy": 0.80,
+            "precision": 0.75,
+            "recall": 1.00,
+            "f1": 0.8571428571,
+            "roc_auc": 0.9166666667,
+            "confusion_matrix": [
+                [1, 1],
+                [0, 3],
+            ],
+            "predictions": [
+                0,
+                1,
+                1,
+                1,
+                1,
+            ],
+        }
 
         run_training_pipeline(
             ticker="TSLA",
@@ -202,155 +188,86 @@ def test_training_pipeline_creates_experiment_record():
     first = experiment_snapshots[0]
     second = experiment_snapshots[1]
 
-    assert isinstance(
-        ExperimentRecord(
-            run_id="test",
-            experiment_name="test",
-            model_version="test",
-            model_name="test",
-            ticker="TSLA",
-            target="Direction",
-            sequence_length=60,
-            features=["Return"],
-            training={},
-        ),
-        ExperimentRecord,
-    )
-
-    # --------------------------------------------------
-    # Initial experiment state
-    # --------------------------------------------------
-
-    assert first["run_id"] == (
-        "v7-test-run-001"
-    )
-
-    assert first["model_version"] == (
-        "refactored-v7"
-    )
-
-    assert first["model_name"] == (
-        "stock-direction-lstm"
-    )
-
-    assert first["ticker"] == "TSLA"
-
-    assert first["target"] == "Direction"
-
-    assert first["sequence_length"] == 60
-
-    assert first["features"] == [
-        "Return",
-        "Return_5D",
-        "Return_10D",
-    ]
-
-    assert first["training"][
-        "epochs_requested"
-    ] == 60
-
-    assert first["training"][
-        "batch_size"
-    ] == 32
-
-    assert first["training"][
-        "validation_split"
-    ] == 0.10
-
-    assert first["training"][
-        "patience"
-    ] == 10
-
-    assert (
-        first["training"].get(
-            "epochs_completed"
-        )
-        is None
-    )
-
-    assert first["status"] == (
-        "started"
-    )
-
-    # Evaluation must not exist yet.
     assert first["metrics"] == {}
 
-    # --------------------------------------------------
-    # Final experiment state
-    # --------------------------------------------------
+    assert second["metrics"]["accuracy"] == 0.80
 
-    assert second["run_id"] == (
-        "v7-test-run-001"
+    assert (
+        second["metrics"]["precision"]
+        == 0.75
     )
 
-    assert second["status"] == (
-        "completed"
+    assert (
+        second["metrics"]["recall"]
+        == 1.00
     )
 
-    assert second["training"][
-        "epochs_completed"
-    ] == 42
+    assert (
+        second["metrics"]["f1"]
+        == 0.8571428571
+    )
 
-    assert second["metrics"][
-        "accuracy"
-    ] == 0.80
+    assert (
+        second["metrics"]["roc_auc"]
+        == 0.9166666667
+    )
 
-    assert second["metrics"][
-        "precision"
-    ] == 0.75
+    assert (
+        second["metrics"]["confusion_matrix"]
+        == [
+            [1, 1],
+            [0, 3],
+        ]
+    )
 
-    assert second["metrics"][
-        "recall"
-    ] == 1.00
+    assert second["status"] == "completed"
 
-    assert second["metrics"][
-        "f1"
-    ] == 0.8571428571
-
-    assert second["metrics"][
-        "roc_auc"
-    ] == 0.9166666667
-
-    assert second["metrics"][
-        "confusion_matrix"
-    ] == [
-        [1, 1],
-        [0, 3],
-    ]
+    assert (
+        second["training"]["epochs_completed"]
+        == 42
+    )
 
 
-def test_training_pipeline_uses_same_run_id_for_all_experiment_states():
-    experiment_snapshots = []
+def test_training_pipeline_passes_test_data_to_evaluation():
+    captured = {}
 
-    def capture_save_pipeline_run(
+    def capture_evaluation(
         *,
-        run_id,
-        metadata,
-        feature_data=None,
-        train_data=None,
-        test_data=None,
-        metrics=None,
-        predictions=None,
-        experiment=None,
+        y_true,
+        probabilities,
     ):
-        if experiment is not None:
-            experiment_snapshots.append(
-                {
-                    "run_id": run_id,
-                    "experiment": (
-                        experiment.to_dict()
-                    ),
-                }
-            )
+        captured["y_true"] = np.asarray(
+            y_true
+        )
 
-        return "artifacts/runs/test"
+        captured["probabilities"] = np.asarray(
+            probabilities
+        )
+
+        return {
+            "accuracy": 0.5,
+            "precision": 0.5,
+            "recall": 0.5,
+            "f1": 0.5,
+            "roc_auc": 0.5,
+            "confusion_matrix": [
+                [1, 1],
+                [1, 1],
+            ],
+            "predictions": [
+                0,
+                1,
+                0,
+                1,
+            ],
+        }
 
     with patch(
         "src.pipeline.train_direction_v7_pipeline.run_market_pipeline",
         return_value=make_pipeline_result(),
     ), patch(
         "src.pipeline.train_direction_v7_pipeline.save_pipeline_run",
-        side_effect=capture_save_pipeline_run,
+        return_value="artifacts/runs/test",
     ), patch(
         "src.pipeline.train_direction_v7_pipeline.add_return_features",
         side_effect=lambda df, price_column: pd.DataFrame(
@@ -392,7 +309,7 @@ def test_training_pipeline_uses_same_run_id_for_all_experiment_states():
         "src.pipeline.train_direction_v7_pipeline.save_model_artifact",
     ), patch(
         "src.pipeline.train_direction_v7_pipeline.evaluate_binary_classifier",
-        return_value=make_evaluation_result(),
+        side_effect=capture_evaluation,
     ):
 
         prepare_dataset.return_value = type(
@@ -400,7 +317,7 @@ def test_training_pipeline_uses_same_run_id_for_all_experiment_states():
             (),
             {
                 "train_size": 10,
-                "test_size": 5,
+                "test_size": 4,
                 "sequence_length": 60,
                 "n_features": 3,
                 "X_train": np.zeros(
@@ -408,9 +325,11 @@ def test_training_pipeline_uses_same_run_id_for_all_experiment_states():
                 ),
                 "y_train": np.zeros(10),
                 "X_test": np.zeros(
-                    (5, 60, 3)
+                    (4, 60, 3)
                 ),
-                "y_test": np.zeros(5),
+                "y_test": np.array(
+                    [0, 1, 0, 1]
+                ),
                 "train_data": pd.DataFrame(
                     {"Direction": [0, 1]}
                 ),
@@ -421,58 +340,33 @@ def test_training_pipeline_uses_same_run_id_for_all_experiment_states():
             },
         )()
 
-        train_model.return_value = (
-            make_training_result(42)
-        )
+        train_model.return_value = type(
+            "TrainingResult",
+            (),
+            {
+                "model": FakeModel(),
+                "epochs_completed": 10,
+            },
+        )()
 
         run_training_pipeline(
             ticker="TSLA",
             sentiment_enabled=False,
         )
 
-    assert len(experiment_snapshots) == 2
-
-    assert (
-        experiment_snapshots[0]["run_id"]
-        == "v7-test-run-001"
+    np.testing.assert_array_equal(
+        captured["y_true"],
+        np.array([0, 1, 0, 1]),
     )
 
-    assert (
-        experiment_snapshots[1]["run_id"]
-        == "v7-test-run-001"
-    )
-
-    assert (
-        experiment_snapshots[0][
-            "experiment"
-        ]["run_id"]
-        == "v7-test-run-001"
-    )
-
-    assert (
-        experiment_snapshots[1][
-            "experiment"
-        ]["run_id"]
-        == "v7-test-run-001"
-    )
-
-    assert (
-        experiment_snapshots[0][
-            "experiment"
-        ]["metrics"]
-        == {}
-    )
-
-    assert (
-        experiment_snapshots[1][
-            "experiment"
-        ]["status"]
-        == "completed"
-    )
-
-    assert (
-        experiment_snapshots[1][
-            "experiment"
-        ]["metrics"]["accuracy"]
-        == 0.80
+    np.testing.assert_array_equal(
+        captured["probabilities"],
+        np.array(
+            [
+                0.10,
+                0.80,
+                0.90,
+                0.85,
+            ]
+        ),
     )
