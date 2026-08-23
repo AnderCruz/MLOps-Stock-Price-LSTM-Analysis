@@ -18,6 +18,9 @@ from src.model.return_features import (
 from src.model.trainer import (
     train_lstm_model,
 )
+from src.pipeline.experiment_schema import (
+    ExperimentRecord,
+)
 from src.pipeline.market_pipeline import (
     run_market_pipeline,
 )
@@ -206,7 +209,31 @@ def run_training_pipeline(
     )
 
     # ==================================================
-    # 5. PERSIST RUN ARTIFACT
+    # 5. CREATE EXPERIMENT RECORD
+    # ==================================================
+
+    experiment = ExperimentRecord(
+        run_id=run_id,
+        experiment_name="stock-direction-lstm",
+        model_name="stock-direction-lstm",
+        model_version=MODEL_VERSION,
+        ticker=pipeline_result.ticker,
+        features=feature_columns,
+        target=target_column,
+        sequence_length=prepared.sequence_length,
+        train_size=prepared.train_size,
+        test_size=prepared.test_size,
+        training={
+            "epochs_requested": EPOCHS,
+            "batch_size": BATCH_SIZE,
+            "validation_split": VALIDATION_SPLIT,
+            "patience": PATIENCE,
+        },
+        status="started",
+    )
+
+    # ==================================================
+    # 6. PERSIST RUN ARTIFACT
     # ==================================================
 
     print("\n" + "=" * 70)
@@ -277,6 +304,7 @@ def run_training_pipeline(
         feature_data=direction_data,
         train_data=prepared.train_data,
         test_data=prepared.test_data,
+        experiment=experiment,
     )
 
     print(
@@ -285,7 +313,7 @@ def run_training_pipeline(
     )
 
     # ==================================================
-    # 6. BUILD MODEL
+    # 7. BUILD MODEL
     # ==================================================
 
     print("\n" + "=" * 70)
@@ -318,7 +346,7 @@ def run_training_pipeline(
     )
 
     # ==================================================
-    # 7. TRAIN
+    # 8. TRAIN
     # ==================================================
 
     print("\n" + "=" * 70)
@@ -336,7 +364,7 @@ def run_training_pipeline(
     )
 
     # ==================================================
-    # 8. MODEL ARTIFACT
+    # 9. MODEL ARTIFACT
     # ==================================================
 
     print("\n" + "=" * 70)
@@ -417,7 +445,17 @@ def run_training_pipeline(
     )
 
     # ==================================================
-    # 9. UPDATE RUN METADATA
+    # 10. UPDATE EXPERIMENT RECORD
+    # ==================================================
+
+    experiment.training[
+        "epochs_completed"
+    ] = training_result.epochs_completed
+
+    experiment.status = "completed"
+
+    # ==================================================
+    # 11. UPDATE RUN METADATA
     # ==================================================
 
     final_metadata = dict(metadata)
@@ -449,10 +487,11 @@ def run_training_pipeline(
         feature_data=direction_data,
         train_data=prepared.train_data,
         test_data=prepared.test_data,
+        experiment=experiment,
     )
 
     # ==================================================
-    # 10. FINAL SUMMARY
+    # 12. FINAL SUMMARY
     # ==================================================
 
     print("\n" + "=" * 70)
