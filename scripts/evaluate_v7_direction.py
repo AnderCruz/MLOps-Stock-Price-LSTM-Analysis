@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+from model.model_validation import validate_model_candidate
 from src.pipeline.market_pipeline import run_market_pipeline
 from src.model.return_features import add_return_features
 from src.model.direction_target import add_direction_target
@@ -290,6 +291,11 @@ def main() -> None:
     evaluation = evaluate_binary_classifier(
         y_true=actual,
         probabilities=probabilities,
+    )
+
+    validation = validate_model_candidate(
+        metrics=evaluation,
+        majority_baseline=majority_baseline,
     )
 
     predictions = np.asarray(
