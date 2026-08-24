@@ -158,6 +158,8 @@ def test_training_pipeline_creates_experiment_record():
     ) as train_model, patch(
         "src.pipeline.train_direction_v7_pipeline.save_model_artifact",
     ), patch(
+        "src.pipeline.train_direction_v7_pipeline.ModelRegistry",
+    ), patch(
         "src.pipeline.train_direction_v7_pipeline.evaluate_binary_classifier",
         return_value=make_evaluation_result(),
     ):
@@ -390,6 +392,8 @@ def test_training_pipeline_uses_same_run_id_for_all_experiment_states():
         "src.pipeline.train_direction_v7_pipeline.train_lstm_model",
     ) as train_model, patch(
         "src.pipeline.train_direction_v7_pipeline.save_model_artifact",
+    ), patch(
+        "src.pipeline.train_direction_v7_pipeline.ModelRegistry",
     ), patch(
         "src.pipeline.train_direction_v7_pipeline.evaluate_binary_classifier",
         return_value=make_evaluation_result(),

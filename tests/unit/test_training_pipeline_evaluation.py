@@ -119,6 +119,8 @@ def test_training_pipeline_persists_real_evaluation_metrics():
     ) as train_model, patch(
         "src.pipeline.train_direction_v7_pipeline.save_model_artifact",
     ), patch(
+        "src.pipeline.train_direction_v7_pipeline.ModelRegistry",
+    ), patch(
         "src.pipeline.train_direction_v7_pipeline.evaluate_binary_classifier",
     ) as evaluate:
 
@@ -307,6 +309,8 @@ def test_training_pipeline_passes_test_data_to_evaluation():
         "src.pipeline.train_direction_v7_pipeline.train_lstm_model",
     ) as train_model, patch(
         "src.pipeline.train_direction_v7_pipeline.save_model_artifact",
+    ), patch(
+        "src.pipeline.train_direction_v7_pipeline.ModelRegistry",
     ), patch(
         "src.pipeline.train_direction_v7_pipeline.evaluate_binary_classifier",
         side_effect=capture_evaluation,
