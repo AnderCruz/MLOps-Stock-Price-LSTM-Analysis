@@ -37,6 +37,12 @@ from src.pipeline.market_pipeline import (
 from src.pipeline.run_artifacts import (
     save_pipeline_run,
 )
+from src.model.model_registry import (
+    ModelRegistry,
+)
+from src.model.model_validation import (
+    validate_model_candidate,
+)
 
 
 MODEL_VERSION = "refactored-v7"
@@ -371,6 +377,37 @@ def run_training_pipeline(
         ],
     }
 
+
+    # ==================================================
+    # MODEL VALIDATION
+    # ==================================================
+
+    actual = (
+        np.asarray(
+            prepared.y_test
+        )
+        .reshape(-1)
+        .astype(int)
+    )
+
+    up = int(
+        np.sum(actual == 1)
+    )
+
+    down = int(
+        np.sum(actual == 0)
+    )
+
+    majority_baseline = (
+        max(up, down)
+        / len(actual)
+    )
+
+    validation = validate_model_candidate(
+        metrics=experiment.metrics,
+        majority_baseline=majority_baseline,
+    )
+
     print(
         "Accuracy:",
         f"{experiment.metrics['accuracy']:.4%}",
@@ -489,6 +526,13 @@ def run_training_pipeline(
             ),
         )
     )
+
+    registry_record = registry.record_validation(
+        model_name=experiment.model_name,
+        model_version=experiment.model_version,
+        validation=validation,
+    )
+
 
     print(
         "Registered model:",

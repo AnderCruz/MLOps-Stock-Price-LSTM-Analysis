@@ -4,6 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+from src.model.model_validation import (
+    ValidationResult,
+)
+
 
 VALID_STATUSES = {
     "candidate",
@@ -241,6 +245,61 @@ class ModelRegistry:
             record.copy()
             for record in model_versions.values()
         ]
+
+    # --------------------------------------------------
+    # Validation
+    # --------------------------------------------------
+
+    def record_validation(
+        self,
+        *,
+        model_name: str,
+        model_version: str,
+        validation: ValidationResult,
+    ) -> dict[str, Any]:
+        """
+        Persist the validation result for a model candidate.
+
+        A successful validation moves the model from
+        candidate to validated.
+
+        A failed validation moves the model from
+        candidate to rejected.
+        """
+
+        record = self._find_model(
+            model_name=model_name,
+            model_version=model_version,
+        )
+
+        current_status = record[
+            "status"
+        ]
+
+        if current_status != "candidate":
+            raise InvalidPromotionError(
+                "Model validation is only "
+                "allowed for candidate models. "
+                f"Current status: "
+                f"'{current_status}'."
+            )
+
+        record["validation"] = (
+            validation.to_dict()
+        )
+
+        if validation.passed:
+            record["status"] = (
+                "validated"
+            )
+        else:
+            record["status"] = (
+                "rejected"
+            )
+
+        self._save()
+
+        return record.copy()
 
     # --------------------------------------------------
     # Promotion
