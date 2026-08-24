@@ -4,7 +4,9 @@ from pathlib import Path
 
 import numpy as np
 
-from src.model.artifact_manager import save_model_artifact
+from src.model.artifact_manager import (
+    save_model_artifact,
+)
 from src.model.direction_preprocessing import (
     prepare_direction_dataset,
 )
@@ -16,6 +18,9 @@ from src.model.directional_model import (
 )
 from src.model.evaluation import (
     evaluate_binary_classifier,
+)
+from src.model.model_registry import (
+    ModelRegistry,
 )
 from src.model.return_features import (
     add_return_features,
@@ -47,6 +52,13 @@ BATCH_SIZE = 32
 VALIDATION_SPLIT = 0.10
 
 PATIENCE = 10
+
+
+REGISTRY_PATH = (
+    Path("artifacts")
+    / "registry"
+    / "registry.json"
+)
 
 
 def run_training_pipeline(
@@ -98,13 +110,9 @@ def run_training_pipeline(
     print("RETURN FEATURE ENGINEERING")
     print("=" * 70)
 
-    price_column = (
-        f"{pipeline_result.ticker}_Close"
-    )
-
-    feature_data = add_return_features(
+    direction_data = add_return_features(
         df=pipeline_result.features,
-        price_column=price_column,
+        price_column=f"{ticker}_Close",
     )
 
     # ==================================================
@@ -116,7 +124,7 @@ def run_training_pipeline(
     print("=" * 70)
 
     direction_data = add_direction_target(
-        df=feature_data,
+        df=direction_data,
         return_column="Return",
     )
 
@@ -129,8 +137,7 @@ def run_training_pipeline(
     target_column = "Direction"
 
     direction_data = direction_data[
-        feature_columns
-        + [target_column]
+        feature_columns + [target_column]
     ]
 
     print(
@@ -151,20 +158,16 @@ def run_training_pipeline(
     print(
         "UP:",
         int(
-            (
-                direction_data[target_column]
-                == 1
-            ).sum()
+            (direction_data[target_column] == 1)
+            .sum()
         ),
     )
 
     print(
         "DOWN:",
         int(
-            (
-                direction_data[target_column]
-                == 0
-            ).sum()
+            (direction_data[target_column] == 0)
+            .sum()
         ),
     )
 
@@ -214,98 +217,49 @@ def run_training_pipeline(
     )
 
     # ==================================================
-    # 5. CREATE EXPERIMENT RECORD
+    # 5. EXPERIMENT RECORD
     # ==================================================
 
     experiment = ExperimentRecord(
         run_id=run_id,
         experiment_name="stock-direction-lstm",
-        model_name="stock-direction-lstm",
         model_version=MODEL_VERSION,
-        ticker=pipeline_result.ticker,
+        model_name="stock-direction-lstm",
+        ticker=ticker,
+        target="Direction",
+        sequence_length=SEQUENCE_LENGTH,
         features=feature_columns,
-        target=target_column,
-        sequence_length=prepared.sequence_length,
-        train_size=prepared.train_size,
-        test_size=prepared.test_size,
         training={
             "epochs_requested": EPOCHS,
             "batch_size": BATCH_SIZE,
             "validation_split": VALIDATION_SPLIT,
             "patience": PATIENCE,
+            "epochs_completed": None,
         },
-        status="started",
     )
 
+    experiment.status = "started"
+
+
     # ==================================================
-    # 6. PERSIST RUN ARTIFACT
+    # 6. PERSIST DATASET ARTIFACTS
     # ==================================================
 
     print("\n" + "=" * 70)
     print("PERSISTING DATASET ARTIFACTS")
     print("=" * 70)
 
-    dataset_metadata = (
-        pipeline_result.metadata()
-    )
-
-    dataset_metadata.update(
-        {
-            "status": "training_started",
-
-            "model_version": MODEL_VERSION,
-
-            "model_name": "stock-direction-lstm",
-
-            "task": "binary_classification",
-
-            "target": {
-                "column": target_column,
-                "definition": (
-                    "1 if next-day return > 0, "
-                    "otherwise 0"
-                ),
-            },
-
-            "features": feature_columns,
-
-            "dataset": {
-                "target_column": target_column,
-                "sequence_length": (
-                    prepared.sequence_length
-                ),
-                "n_features": (
-                    prepared.n_features
-                ),
-                "train_size": (
-                    prepared.train_size
-                ),
-                "test_size": (
-                    prepared.test_size
-                ),
-                "X_train_shape": list(
-                    prepared.X_train.shape
-                ),
-                "X_test_shape": list(
-                    prepared.X_test.shape
-                ),
-                "scaler": "StandardScaler",
-            },
-
-            "training": {
-                "epochs_requested": EPOCHS,
-                "batch_size": BATCH_SIZE,
-                "validation_split": (
-                    VALIDATION_SPLIT
-                ),
-                "patience": PATIENCE,
-            },
-        }
-    )
-
     run_dir = save_pipeline_run(
         run_id=run_id,
-        metadata=dataset_metadata,
+        metadata={
+            "model_version": MODEL_VERSION,
+            "model_name": experiment.model_name,
+            "ticker": ticker,
+            "target": target_column,
+            "sequence_length": SEQUENCE_LENGTH,
+            "features": feature_columns,
+            "status": "training_started",
+        },
         feature_data=direction_data,
         train_data=prepared.train_data,
         test_data=prepared.test_data,
@@ -326,7 +280,7 @@ def run_training_pipeline(
     print("=" * 70)
 
     model = build_directional_lstm_model(
-        sequence_length=prepared.sequence_length,
+        sequence_length=SEQUENCE_LENGTH,
         n_features=prepared.n_features,
     )
 
@@ -351,7 +305,7 @@ def run_training_pipeline(
     )
 
     # ==================================================
-    # 8. TRAIN
+    # 8. TRAIN MODEL
     # ==================================================
 
     print("\n" + "=" * 70)
@@ -450,77 +404,55 @@ def run_training_pipeline(
     )
 
     # ==================================================
-    # 10. MODEL ARTIFACT
+    # 10. MODEL METADATA
+    # ==================================================
+
+    metadata = {
+        "model_version": MODEL_VERSION,
+        "model_name": experiment.model_name,
+        "ticker": ticker,
+        "target": target_column,
+        "sequence_length": SEQUENCE_LENGTH,
+
+        "features": feature_columns,
+
+        "dataset": {
+            "train_size": prepared.train_size,
+            "test_size": prepared.test_size,
+            "n_features": prepared.n_features,
+            "X_train_shape": list(
+                prepared.X_train.shape
+            ),
+            "X_test_shape": list(
+                prepared.X_test.shape
+            ),
+            "scaler": "StandardScaler",
+        },
+
+        "training": {
+            "epochs_requested": EPOCHS,
+            "epochs_completed": (
+                training_result.epochs_completed
+            ),
+            "batch_size": BATCH_SIZE,
+            "validation_split": (
+                VALIDATION_SPLIT
+            ),
+            "patience": PATIENCE,
+        },
+
+        "evaluation": dict(
+            experiment.metrics
+        ),
+    }
+
+    # ==================================================
+    # 11. SAVE MODEL ARTIFACT
     # ==================================================
 
     print("\n" + "=" * 70)
     print("MODEL ARTIFACT")
     print("=" * 70)
-
-    metadata = pipeline_result.metadata()
-
-    metadata.update(
-        {
-            "status": "success",
-
-            "model_version": MODEL_VERSION,
-
-            "model_name": "stock-direction-lstm",
-
-            "task": "binary_classification",
-
-            "target": {
-                "column": target_column,
-                "definition": (
-                    "1 if next-day return > 0, "
-                    "otherwise 0"
-                ),
-            },
-
-            "features": feature_columns,
-
-            "framework": "tensorflow",
-
-            "dataset": {
-                "target_column": target_column,
-                "sequence_length": (
-                    prepared.sequence_length
-                ),
-                "n_features": (
-                    prepared.n_features
-                ),
-                "train_size": (
-                    prepared.train_size
-                ),
-                "test_size": (
-                    prepared.test_size
-                ),
-                "X_train_shape": list(
-                    prepared.X_train.shape
-                ),
-                "X_test_shape": list(
-                    prepared.X_test.shape
-                ),
-                "scaler": "StandardScaler",
-            },
-
-            "training": {
-                "epochs_requested": EPOCHS,
-                "epochs_completed": (
-                    training_result.epochs_completed
-                ),
-                "batch_size": BATCH_SIZE,
-                "validation_split": (
-                    VALIDATION_SPLIT
-                ),
-                "patience": PATIENCE,
-            },
-
-            "evaluation": dict(
-                experiment.metrics
-            ),
-        }
-    )
 
     model_dir = save_model_artifact(
         model=training_result.model,
@@ -535,7 +467,52 @@ def run_training_pipeline(
     )
 
     # ==================================================
-    # 11. UPDATE EXPERIMENT RECORD
+    # 12. REGISTER MODEL
+    # ==================================================
+
+    print("\n" + "=" * 70)
+    print("MODEL REGISTRY")
+    print("=" * 70)
+
+    registry = ModelRegistry(
+        registry_path=REGISTRY_PATH
+    )
+
+    registry_record = (
+        registry.register_model(
+            model_name=experiment.model_name,
+            model_version=experiment.model_version,
+            run_id=experiment.run_id,
+            artifact_path=str(model_dir),
+            metrics=dict(
+                experiment.metrics
+            ),
+        )
+    )
+
+    print(
+        "Registered model:",
+        registry_record[
+            "model_name"
+        ],
+    )
+
+    print(
+        "Model version:",
+        registry_record[
+            "model_version"
+        ],
+    )
+
+    print(
+        "Registry status:",
+        registry_record[
+            "status"
+        ],
+    )
+
+    # ==================================================
+    # 13. UPDATE EXPERIMENT RECORD
     # ==================================================
 
     experiment.training[
@@ -545,7 +522,7 @@ def run_training_pipeline(
     experiment.status = "completed"
 
     # ==================================================
-    # 12. UPDATE RUN METADATA
+    # 14. UPDATE RUN METADATA
     # ==================================================
 
     final_metadata = dict(metadata)
@@ -565,6 +542,23 @@ def run_training_pipeline(
             Path(run_dir)
             / "feature_data.csv"
         ),
+        "registry": str(
+            REGISTRY_PATH
+        ),
+    }
+
+    final_metadata[
+        "model_registry"
+    ] = {
+        "model_name": registry_record[
+            "model_name"
+        ],
+        "model_version": registry_record[
+            "model_version"
+        ],
+        "status": registry_record[
+            "status"
+        ],
     }
 
     final_metadata["status"] = (
@@ -581,7 +575,7 @@ def run_training_pipeline(
     )
 
     # ==================================================
-    # 13. FINAL SUMMARY
+    # 15. FINAL SUMMARY
     # ==================================================
 
     print("\n" + "=" * 70)
@@ -618,11 +612,26 @@ def run_training_pipeline(
         model_dir,
     )
 
-    return training_result
+    print(
+        "Registry:",
+        REGISTRY_PATH,
+    )
+
+    print(
+        "Registry status:",
+        registry_record[
+            "status"
+        ],
+    )
+
+    return {
+        "run_id": run_id,
+        "model_version": MODEL_VERSION,
+        "model_dir": model_dir,
+        "registry": registry_record,
+        "experiment": experiment,
+    }
 
 
 if __name__ == "__main__":
-    run_training_pipeline(
-        ticker="TSLA",
-        sentiment_enabled=False,
-    )
+    run_training_pipeline()
