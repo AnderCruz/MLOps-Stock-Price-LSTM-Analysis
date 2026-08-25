@@ -82,3 +82,59 @@ def save_model_artifact(
     print("Metadata:", metadata_path)
 
     return model_dir
+
+
+def load_model_artifact(
+    model_directory: str | Path,
+):
+    """
+    Load a persisted Keras model from a model artifact directory.
+    """
+
+    from tensorflow.keras.models import load_model
+
+    model_directory = Path(
+        model_directory
+    )
+
+    model_path = (
+        model_directory / "model.keras"
+    )
+
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Model artifact not found: {model_path}"
+        )
+
+    return load_model(
+        model_path
+    )
+
+
+def load_scaler_artifact(
+    model_directory: str | Path,
+):
+    """
+    Load the persisted feature scaler from a model
+    artifact directory.
+    """
+
+    import pickle
+
+    model_directory = Path(
+        model_directory
+    )
+
+    scaler_path = (
+        model_directory / "scaler.pkl"
+    )
+
+    if not scaler_path.exists():
+        raise FileNotFoundError(
+            f"Scaler artifact not found: {scaler_path}"
+        )
+
+    with scaler_path.open(
+        "rb"
+    ) as file:
+        return pickle.load(file)
