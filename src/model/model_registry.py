@@ -424,3 +424,69 @@ class ModelRegistry:
             f"'{current_status}' -> "
             f"'{target_status}'."
         )
+
+    # --------------------------------------------------
+    # Rollback
+    # --------------------------------------------------
+
+    def rollback_model(
+        self,
+        *,
+        model_name: str,
+        model_version: str,
+    ) -> dict[str, Any]:
+        """
+        Roll back production to a previously validated model.
+
+        The target model must currently be in the
+        'validated' state.
+
+        The current production model is moved back to
+        'validated', while the target becomes 'production'.
+        """
+
+        target = self._find_model(
+            model_name=model_name,
+            model_version=model_version,
+        )
+
+        if target.get("status") != "validated":
+            raise InvalidPromotionError(
+                "Rollback target must be "
+                "'validated'. "
+                f"Current status is "
+                f"'{target.get('status')}'."
+            )
+
+        model_versions = (
+            self._get_model_versions(
+                model_name
+            )
+        )
+
+        current_production = None
+
+        for (
+            version,
+            record,
+        ) in model_versions.items():
+
+            if record.get("status") == "production":
+                current_production = record
+                break
+
+        if current_production is None:
+            raise InvalidPromotionError(
+                "Cannot rollback because "
+                "there is no current production model."
+            )
+
+        current_production[
+            "status"
+        ] = "validated"
+
+        target["status"] = "production"
+
+        self._save()
+
+        return target.copy()
