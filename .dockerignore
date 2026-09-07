@@ -1,0 +1,10 @@
+.venv
+.venv-1
+.git
+.github
+__pycache__
+.pytest_cache
+*.pyc
+
+artifacts/raw_market_data
+artifacts/runs
